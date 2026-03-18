@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Слова Пацана: ЧЕСТНАЯ ИГРА</title>
+    <title>Слова Пацана: ПРОВЕРКА</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; font-family: monospace; }
+        body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: monospace; }
         #game-container { width: 100%; height: 100%; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
@@ -15,6 +15,7 @@
 <body>
     <div id="game-container"></div>
     <script>
+        // Тот же конфиг Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyDD2ftVwjo9qFEdGegZi6HY06USWmb9j60",
             authDomain: "slovopacana-10148.firebaseapp.com",
@@ -37,196 +38,52 @@
             constructor() { super('MenuScene'); }
             preload() { 
                 this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
+                // Загружаем файлы, но с обработкой ошибок
                 this.load.text('baseTxt', 'russian.txt');
                 this.load.text('slangTxt', 'slang.txt');
                 this.load.text('memesTxt', 'memes.txt');
             }
             create() {
                 const parse = (key) => {
-                    const txt = this.cache.text.get(key);
-                    return txt ? txt.split(/[\s,]+/).map(w => w.toUpperCase().trim()).filter(w => w.length > 0) : [];
+                    try {
+                        const txt = this.cache.text.get(key);
+                        if (!txt) return [];
+                        return txt.split(/[\s,]+/).map(w => w.toUpperCase().trim()).filter(w => w.length > 0);
+                    } catch(e) { console.error("Ошибка загрузки файла:", key); return []; }
                 };
+                
                 BASE_WORDS = new Set(parse('baseTxt'));
                 SLANG_WORDS = new Set(parse('slangTxt'));
                 MEME_WORDS = new Set(parse('memesTxt'));
 
                 this.add.image(540, 960, 'bg').setAlpha(0.3).setDisplaySize(1080, 1920);
-                this.add.text(540, 300, 'СЛОВА\nПАЦАНА', { fontSize: '100px', fill: '#fff', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
+                this.add.text(540, 300, 'СЛОВА ПАЦАНА', { fontSize: '90px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
                 
-                const btn = (y, txt, color, mode) => {
-                    const b = this.add.container(540, y);
-                    const r = this.add.rectangle(0, 0, 800, 150, color, 0.8).setInteractive();
-                    b.add([r, this.add.text(0, 0, txt, { fontSize: '45px', fill: '#fff' }).setOrigin(0.5)]);
+                const btn = (y, txt, mode) => {
+                    const r = this.add.rectangle(540, y, 800, 150, 0x3b82f6, 0.8).setInteractive();
+                    this.add.text(540, y, txt, { fontSize: '45px', fill: '#fff' }).setOrigin(0.5);
                     r.on('pointerdown', () => this.scene.start('MainScene', { mode }));
                 };
-                btn(850, 'РЕЙТИНГ (СОЛО)', 0xff0000, 'RANKED');
-                btn(1050, 'БЫСТРАЯ ИГРА (СЕТЬ)', 0x3b82f6, 'MULTIPLAYER');
+                btn(850, 'ИГРАТЬ (СОЛО)', 'RANKED');
                 
-                this.add.text(540, 1300, `СЛОВ В БАЗЕ: ${BASE_WORDS.size + SLANG_WORDS.size + MEME_WORDS.size}`, {fontSize: '30px', fill: '#888'}).setOrigin(0.5);
+                const total = BASE_WORDS.size + SLANG_WORDS.size + MEME_WORDS.size;
+                this.add.text(540, 1200, `СЛОВ ЗАГРУЖЕНО: ${total}`, {fontSize: '30px', fill: '#ff0000'}).setOrigin(0.5);
+                if (total === 0) {
+                    this.add.text(540, 1250, 'ОШИБКА: ТЕКСТОВЫЕ ФАЙЛЫ НЕ НАЙДЕНЫ!', {fontSize: '25px', fill: '#ff0000'}).setOrigin(0.5);
+                }
             }
         }
 
+        // Упрощенная MainScene для проверки запуска
         class MainScene extends Phaser.Scene {
             constructor() { super('MainScene'); }
-            init(data) { 
-                this.mode = data.mode; 
-                this.roomPath = 'rooms/global_battle'; 
-                this.gridCreated = false;
-                this.timeLeft = 120;
-                this.isGameOver = false;
-                this.usedWords = new Set(); // Список уже использованных слов
-            }
-            preload() {
-                this.load.image('bg', 'https://rosebud.ai/assets/concret
-
-
-e-wall.webp?wHr0');
-                this.load.image('tile', 'https://rosebud.ai/assets/stone-tile.webp?Nl9W');
-            }
             create() {
-                this.add.image(540, 960, 'bg').setAlpha(0.2).setDisplaySize(1080, 1920);
-                this.score = 0; this.oppScore = 0; this.currentWord = ""; this.selectedTiles = [];
-                
-                this.timerText = this.add.text(540, 80, 'ВРЕМЯ: 2:00', { fontSize: '60px', fill: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
-                this.scoreText = this.add.text(50, 160, 'АВТОРИТЕТ: 0', { fontSize: '45px', fill: '#facc15', fontStyle: 'bold' });
-                this.oppScoreText = this.add.text(50, 230, 'СОПЕРНИК: 0', { fontSize: '40px', fill: '#ff4444' }).setVisible(this.mode === 'MULTIPLAYER');
-                this.statusText = this.add.text(540, 420, '', { fontSize: '35px', fill: '#00ff00' }).setOrigin(0.5);
-                this.wordDisplay = this.add.text(540, 350, '', { fontSize: '70px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-
-                if (this.mode === 'MULTIPLAYER') this.syncMultiplayer();
-                else this.createGridFromLetters(this.generateRandomString(64));
-
-                const sub = this.add.rectangle(540, 1600, 800, 140, 0x00ff00, 0.4).setInteractive();
-                this.add.text(540, 1600, 'ОТВЕТИТЬ ЗА БАЗАР', { fontSize: '45px' }).setOrigin(0.5);
-                sub.on('pointerdown', () => this.checkWord());
-
-                this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
-            }
-
-            updateTimer() {
-                if (this.isGameOver) return;
-                this.timeLeft--;
-                let mins = Math.floor(this.timeLeft / 60);
-                let secs = this.timeLeft % 60;
-                this.timerText.setText(`ВРЕМЯ: ${mins}:${secs < 10 ? '0' + secs : secs}`);
-                if (this.timeLeft <= 0) this.endGame();
-            }
-
-            endGame() {
-                this.isGameOver = true;
-                let resultMsg = "ВРЕМЯ ВЫШЛО!";
-                if (this.mode === 'MULTIPLAYER') {
-                    if (this.score > this.oppScore) resultMsg = "ТЫ ПОБЕДИЛ! КРАСАВА!";
-                    else if (this.score < this.oppScore) resultMsg = "ТЕБЯ ОБОШЛИ...";
-                    else resultMsg = "НИЧЬЯ!";
-                }
-                this.add.rectangle(540, 960, 900, 400, 0x000000, 0.9);
-                this.add.text(540, 900, resultMsg, { fontSize: '60px', fill: '#fff' }).setOrigin(0.5);
-                const r = this.add.text(540, 1050, 'В МЕНЮ', { fontSize: '50px', fill: '#facc15' }).setOrigin(0.5).setInteractive();
-                r.on('pointerdown', () => this.scene.start('MenuScene'));
-            }
-
-            syncMultiplayer() {
-                const roomRef = database.ref(this.roomPath);
-                roomRef.child('grid').on('value', (snap) => {
-                    const val = snap.val();
-                    if (!val) roomRef.child('grid').set(this.generateRandomString(64));
-                    else if (!this.gridCreated) { this.createGridFromLetters(val); this.gridCreated = true; }
-                });
-                database.ref(this.roomPath + '/players/' + playerId).set({ score: 0, lastWord: '' });
-                roomRef.child('players').on('value', (snap) => {
-                    const data = snap.val();
-                    if (data && Object.keys(data).length >= 2) this.statusText.setText('СОПЕРНИК В СЕТИ!');
-                    for (let id in data) {
-                        if (id !== playerId) {
-                            this.oppScoreText.setText(`СОПЕРНИК: ${data[id].score}`);
-                            this.oppScore = data[id].score;
-                        }
-                    }
-                });
-            }
-
-            generateRandomString(len) {
-                const alpha = "АААБВВГДДЕЕЕЖЗИИИККЛЛММНННОООПРРСССТТТУУФХЦЧШЩЬЫЫЯЯ";
-                let res = "";
-                for (let i = 0; i
+                this.add.text(540, 960, 'ИГРА РАБО
 
 
-< len; i++) res += alpha[Math.floor(Math.random() * alpha.length)];
-                return res;
-            }
-
-            createGridFromLetters(str) {
-                for (let i = 0; i < 64; i++) {
-                    let r = Math.floor(i / 8); let c = i % 8;
-                    let x = 120 + c * 115; let y = 500 + r * 115;
-                    let t = this.add.image(x, y, 'tile').setDisplaySize(105, 105).setInteractive();
-                    this.add.text(x, y, str[i], { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-                    t.on('pointerdown', () => this.handleTileClick(t, str[i]));
-                }
-            }
-
-            handleTileClick(tile, letter) {
-                if (this.isGameOver) return;
-                const index = this.selectedTiles.indexOf(tile);
-                if (index !== -1) {
-                    if (index === this.selectedTiles.length - 1) {
-                        tile.clearTint(); this.selectedTiles.pop();
-                        this.currentWord = this.currentWord.slice(0, -1);
-                        this.wordDisplay.setText(this.currentWord);
-                    }
-                    return;
-                }
-                this.currentWord += letter; this.wordDisplay.setText(this.currentWord);
-                tile.setTint(0x3b82f6); this.selectedTiles.push(tile);
-            }
-
-            checkWord() {
-                if (this.isGameOver) return;
-                const w = this.currentWord.toUpperCase();
-                
-                // ПРОВЕРКА НА ПОВТОР
-                if (this.usedWords.has(w)) {
-                    this.flashText("УЖЕ БЫЛО!", "#ff9900");
-                    this.resetSelection();
-                    return;
-                }
-
-                let multiplier = 1;
-                let isMeme = false;
-
-                if (MEME_WORDS.has(w)) { multiplier = 3; isMeme = true; }
-                else if (SLANG_WORDS.has(w)) { multiplier = 2; }
-                else if (!BASE_WORDS.has(w)) {
-                    this.flashText("НЕТ В БАЗЕ", "#ff0000");
-                    this.resetSelection(); return;
-                }
-
-                // Слово прошло проверку
-                this.usedWords.add(w); 
-                let points = w.length * 100 * multiplier;
-                this.score += points;
-                this.scoreText.setText(`АВТОРИТЕТ: ${this.score}`);
-                
-                if (isMeme) {
-                    this.cameras.main.flash(300, 255, 255, 255);
-                    this.flashText(`МЕМ x3! +${points}`, "#00ffff");
-                } else {
-                    this.flashText(multiplier > 1 ? `СЛЕНГ x2! +${points}` : `+${points}`, "#00ff00");
-                }
-
-                if (this.mode === 'MULTIPLAYER') database.ref(this.roomPath + '/players/' + playerId).update({ score: this.score, lastWord: w });
-                this.resetSelection();
-            }
-
-            resetSelection() {
-                this.currentWord = ""; this.wordDisplay.setText("");
-                this.selectedTiles.forEach(t => t.clearTint()); this.selectedTiles = [];
-            }
-
-            flashText(m, c) {
-                const t = this.add.text(540, 450, m, { fontSize: '45px', fill: c, fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
-                this.tweens.add({ targets: t, alpha: 0, y: 350, duration: 2500 });
+ТАЕТ!', {fontSize: '50px'}).setOrigin(0.5);
+                const back = this.add.text(540, 1100, 'ВЕРНУТЬСЯ', {fontSize: '40px', fill: '#facc15'}).setOrigin(0.5).setInteractive();
+                back.on('pointerdown', () => this.scene.start('MenuScene'));
             }
         }
 
@@ -234,6 +91,10 @@ e-wall.webp?wHr0');
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
