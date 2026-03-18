@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Слова Пацана: РАБОЧАЯ ВЕРСИЯ</title>
+    <title>Слова Пацана: СТАБИЛЬНАЯ</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; font-family: monospace; }
         #game-container { width: 100%; height: 100%; }
@@ -29,6 +29,7 @@
         const database = firebase.database();
         const playerId = Math.random().toString(36).substring(7);
 
+        // Хранилища для слов
         let BASE_WORDS = new Set();
         let SLANG_WORDS = new Set();
         let MEME_WORDS = new Set();
@@ -37,16 +38,24 @@
             constructor() { super('MenuScene'); }
             preload() { 
                 this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
-                // Загружаем твои файлы (на скрине видел, они названы верно!)
+                // Загружаем файлы
                 this.load.text('baseTxt', 'russian.txt');
                 this.load.text('slangTxt', 'slang.txt');
                 this.load.text('memesTxt', 'memes.txt');
             }
             create() {
+                // Функция обработки Ё -> Е
+                const normalize = (word) => {
+                    return word.toUpperCase().trim().replace(/Ё/g, 'Е');
+                };
+
                 const parse = (key) => {
                     const txt = this.cache.text.get(key);
-                    return txt ? txt.split(/[\s,]+/).map(w => w.toUpperCase().trim()).filter(w => w.length > 0) : [];
+                    if (!txt) return [];
+                    // Разбиваем, чистим, убираем Ё
+                    return txt.split(/[\s,]+/).map(normalize).filter(w => w.length > 0);
                 };
+                
                 BASE_WORDS = new Set(parse('baseTxt'));
                 SLANG_WORDS = new Set(parse('slangTxt'));
                 MEME_WORDS = new Set(parse('memesTxt'));
@@ -71,40 +80,42 @@
         class MainScene extends Phaser.Scene {
             constructor() { super('MainScene'); }
             init(data) { 
-                this.mode = data.mode; 
-                this.roomPath = 'rooms/global_battle'; 
+                this.mode = data.mode;
+
+
+this.roomPath = 'rooms/global_battle'; 
                 this.gridCreated = false;
                 this.timeLeft = 120;
                 this.isGameOver = false;
                 this.usedWords = new Set();
             }
-            pre
-
-
-load() {
+            preload() {
                 this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
                 this.load.image('tile', 'https://rosebud.ai/assets/stone-tile.webp?Nl9W');
             }
             create() {
+                // ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ПЕРЕД СИНХРОНИЗАЦИЕЙ (ЧТОБЫ НЕ БЫЛО ЧЕРНОГО ЭКРАНА)
                 this.add.image(540, 960, 'bg').setAlpha(0.2).setDisplaySize(1080, 1920);
                 this.score = 0; this.oppScore = 0; this.currentWord = ""; this.selectedTiles = [];
                 
-                this.timerText = this.add.text(540, 80, 'ВРЕМЯ: 2:00', { fontSize: '60px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+                this.timerText = this.add.text(540, 80, 'ВРЕМЯ: 2:00', { fontSize: '60px', fill: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
                 this.scoreText = this.add.text(50, 160, 'АВТОРИТЕТ: 0', { fontSize: '45px', fill: '#facc15', fontStyle: 'bold' });
                 this.oppScoreText = this.add.text(50, 230, 'СОПЕРНИК: 0', { fontSize: '40px', fill: '#ff4444' }).setVisible(this.mode === 'MULTIPLAYER');
                 this.statusText = this.add.text(540, 420, '', { fontSize: '35px', fill: '#00ff00' }).setOrigin(0.5);
                 this.wordDisplay = this.add.text(540, 350, '', { fontSize: '70px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-
-                if (this.mode === 'MULTIPLAYER') this.syncMultiplayer();
-                else this.createGridFromLetters(this.generateRandomString(64));
 
                 const sub = this.add.rectangle(540, 1600, 800, 140, 0x00ff00, 0.4).setInteractive();
                 this.add.text(540, 1600, 'ОТВЕТИТЬ ЗА БАЗАР', { fontSize: '45px' }).setOrigin(0.5);
                 sub.on('pointerdown', () => this.checkWord());
 
                 this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
+
+                // ТЕПЕРЬ ЗАПУСКАЕМ СИНХРОНИЗАЦИЮ
+                if (this.mode === 'MULTIPLAYER') this.syncMultiplayer();
+                else this.createGridFromLetters(this.generateRandomString(64));
             }
 
+            // (Остальные функции без изменений)
             updateTimer() {
                 if (this.isGameOver) return;
                 this.timeLeft--;
@@ -116,9 +127,12 @@ load() {
 
             endGame() {
                 this.isGameOver = true;
-                let resultMsg = this.mode === 'MULTIPLAYER' && this.score < this.oppScore ? "ТЕБЯ ОБОШЛИ..." : "ВРЕМЯ ВЫШЛО!";
-                if (this.mode === 'MULTIPLAYER' && this.score > this.oppScore) resultMsg = "ТЫ ПОБЕДИЛ!";
-                
+                let resultMsg = "ВРЕМЯ ВЫШЛО!";
+                if (this.mode === 'MULTIPLAYER') {
+                    if (this.score > this.oppScore) resultMsg = "ТЫ ПОБЕДИЛ!";
+                    else if (this.score < this.oppScore) resultMsg = "ТЕБЯ ОБОШЛИ...";
+                    else resultMsg = "НИЧЬЯ!";
+                }
                 this.add.rectangle(540, 960, 900, 400, 0x000000, 0.9);
                 this.add.text(540, 900, resultMsg, { fontSize: '60px', fill: '#fff' }).setOrigin(0.5);
                 const r = this.add.text(540, 1050, 'В МЕНЮ', { fontSize: '50px', fill: '#facc15' }).setOrigin(0.5).setInteractive();
@@ -129,12 +143,19 @@ load() {
                 const roomRef = database.ref(this.roomPath);
                 roomRef.child('grid').on('value', (snap) => {
                     const val = snap.val();
-                    if (!val) roomRef.child('grid').set(this.generateRandomString(64));
-                    else if (!this.gridCreated) { this.createGridFromLetters(val); this.gridCreated = true; }
+                    if (!val) {
+                        const newGrid = this.generateRandomString(64);
+                        roomRef.child('grid').set(newGrid);
+                    } else if (!this.gridCreated) {
+                        this.createGridFromLetters(val);
+                        this.gridCreated = true;
+                    }
                 });
                 database.ref(this.roomPath + '/players/' + playerId).set({ score: 0 });
                 roomRef.child('players').on('value', (snap) => {
-                    const data = snap.val();
+
+
+const data = snap.val();
                     if (data && Object.keys(data).length >= 2) this.statusText.setText('СОПЕРНИК В СЕТИ!');
                     for (let id in data) { if (id !== playerId) this.oppScore = data[id].score; }
                     this.oppScoreText.setText(`СОПЕРНИК: ${this.oppScore}`);
@@ -148,10 +169,7 @@ load() {
                 return res;
             }
 
-            createGrid
-
-
-FromLetters(str) {
+            createGridFromLetters(str) {
                 for (let i = 0; i < 64; i++) {
                     let r = Math.floor(i / 8); let c = i % 8;
                     let x = 120 + c * 115; let y = 500 + r * 115;
@@ -172,7 +190,8 @@ FromLetters(str) {
 
             checkWord() {
                 if (this.isGameOver) return;
-                const w = this.currentWord.toUpperCase();
+                // ИГРОК ТОЖЕ ВВОДИТ СЛОВО, КОТОРОЕ МЫ НОРМАЛИЗУЕМ (Ё -> Е)
+                const w = this.currentWord.toUpperCase().replace(/Ё/g, 'Е');
                 if (this.usedWords.has(w)) { this.flashText("УЖЕ БЫЛО!", "#ff9900"); this.resetSelection(); return; }
 
                 let mult = 1, isMeme = false;
@@ -201,7 +220,6 @@ FromLetters(str) {
     </script>
 </body>
 </html>
-
 
 
 
