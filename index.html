@@ -52,7 +52,12 @@
 
         class MainScene extends Phaser.Scene {
             constructor() { super('MainScene'); }
-            init(data) { this.mode = data.mode; this.roomPath = 'rooms/global_battle'; }
+            init(data) { 
+                this.mode = data.mode; 
+                this.roomPath = 'rooms/global_battle'; 
+                this.gridLetters = "";
+                this.gridCreated = false;
+            }
             preload() {
                 this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
                 this.load.image('tile', 'https://rosebud.ai/assets/stone-tile.webp?Nl9W');
@@ -62,66 +67,111 @@
                 this.score = 0; this.oppScore = 0; this.currentWord = ""; this.selectedTiles = [];
                 this.scoreText = this.add.text(50, 150, 'ТВОЙ АВТОРИТЕТ: 0', { fontSize: '40px', fill: '#facc15' });
                 this.oppScoreText = this.add.text(50, 210, 'СОПЕРНИК: 0', { fontSize: '40px', fill: '#ff4444' }).setVisible(this.mode === 'MULTIPLAYER');
-                this.statusText = this.add.text(540, 420, this.mode === 'MULTIPLAYER' ? 'ПОИСК СОПЕРНИКА...' : '', { fontSize: '40px', fill: '#888' }).setOrigin(0.5);
+                this.statusText = this.add.text(540, 420, this.mode === 'MULTIPLAYER' ? 'СИНХРОНИЗАЦИЯ...' : '', { fontSize: '40px', fill: '#888' }).setOrigin(0.5);
                 this.wordDisplay = this.add.text(540, 350, '', { fontSize: '60px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
                 
-                this.createGrid();
+                if (this.mode === 'MULTIPLAYER') {
+                    this.syncMultiplayer();
+                } else {
+                    this.generateLocalGrid();
+                    this.statusText.setVisible(false);
+                }
+
                 const sub = this.add.rectangle(540, 1600, 800, 140, 0x00ff00, 0.4).setInteractive();
                 this.add.text(540, 1600, 'ОТВЕТИТЬ ЗА БАЗАР', { fontSize: '45px' }).setOrigin(0.5);
                 sub.on('pointerdown', () => this.checkWord());
+            }
 
-                if (this.mode === 'MULTIPLAYER') {
-                    database.ref(this.roomPath + '/' + playerId).set({ score: 0, lastWord: '' });
-                    database.ref(this.roomPath).on('value', (snap) => {
-                        const data = snap.val();
-                        if (data && Object.keys(data).length >= 2) {
-                            this.statusText.setText('СОПЕРНИК В СЕТИ! ГАСИ ЕГО!').setFill('#00ff00');
-                        }
-                        for (let id in data) {
-                            if (id !== playerId) {
-                                this.oppScore = data[id].score;
-                                this.oppScoreText.setText(`СОПЕРНИК: ${this.oppScore}`);
-                                if (data[id].lastWord && data[id].lastWord !== this.lastAlertedWord) {
-                                    this.flashText(`СОПЕРНИК НАШЕЛ: ${data[id].lastWord}`, "#ff4444");
-                                    this.lastAlertedWord = data[id].lastWord;
-                                }
+            syncMultiplayer() {
+                const roomRef = database.ref(this.roomPath);
+                roomRef.child('grid').on('value', (snap) => {
+                    const val = snap.val();
+                    if (!val) {
+                        const newGrid = this.generateRandomString(64);
+                        roomRef.child('grid').set(newGrid);
+                    } else if (!this.gridCreated) {
+                        this.createGridFromLetters(val);
+                        this.gridCreated = true;
+                    }
+                });
+
+                database.ref(this.roomPath + '/players/' + playerId).set({ score: 0, lastWord: '' });
+                roomRef.child('players').on('value', (snap) => {
+                    const data = snap.val();
+                    if (data && Object.keys(data).length >= 2) {
+                        this.statusText.setText('СОПЕРНИК В СЕТИ! ПОРВИ ЕГО!').setFill('#00ff00');
+                    }
+                    for (let id in data) {
+                        if (id !== playerId) {
+                            this.oppScoreText.setText(`СОПЕРНИК: ${data[id].score}`);
+                            if (data[id].lastWord && data[id].lastWord !== this.lastAlertedWord) {
+                                this.flashText(`СОПЕРНИК: ${data[id].lastWord}`, "#ff4444");
+                                this.lastAlertedWord = data[id].lastWord;
                             }
                         }
-                    });
-                }
+                    }
+                });
             }
-            createGrid() {
+
+            generateLocalGrid() {
+                this.createGridFromLetters(this.generateRandomString(64));
+            }
+
+            generateRandomString(len) {
                 const alpha = "АААБВВГДДЕЕЕЖЗИИИККЛЛММНННОООПРРСССТТТУУФХЦЧШЩЬЫЫЯЯ";
+                let res = "";
+                for (let i = 0; i < len; i++) res += alpha[Math.floor(Math.random() * alpha.length)];
+                return res;
+            }
+
+            createGridFromLetters(str) {
                 for (let i = 0; i < 64; i++) {
                     let r = Math.floor(i / 8); let c = i % 8;
-                    let letter = alpha[Math.floor(Math.random() * alpha.length)];
+                    let letter = str[i];
                     let x = 120 + c * 115; let y = 500 + r * 115;
                     let t = this.add.image(x, y, 'tile').setDisplaySize(105, 105).setInteractive();
                     this.add.text(x, y, letter, { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-                    t.on('pointerdown', () => {
-                        if (this.selectedTiles.includes(t)) return;
-                        this.currentWord += letter; this.wordDisplay.setText(this.currentWord);
-                        t.setTint(0x3b82f6); this.selectedTiles.push(t);
-                    });
+                    t.on('pointerdown', () => this.handleTileClick(t, letter));
                 }
             }
+
+            handleTileClick(tile, letter) {
+                const index = this.selectedTiles.indexOf(tile);
+                if (index !== -1) {
+                    if (index === this.selectedTiles.length - 1) {
+                        tile.clearTint();
+                        this.selectedTiles.pop();
+                        this.currentWord = this.currentWord.slice(0, -1);
+                        this.wordDisplay.setText(this.currentWord);
+                    }
+                    return;
+                }
+                this.currentWord += letter;
+                this.wordDisplay.setText(this.currentWord);
+                tile.setTint(0x3b82f6);
+                this.selectedTiles.push(tile);
+            }
+
             checkWord() {
                 const w = this.currentWord.toUpperCase();
                 if (ALL_WORDS.has(w)) {
                     let g = w.length * 100; if (INSULTS.has(w)) g *= 2;
                     this.score += g; this.scoreText.setText(`ТВОЙ АВТОРИТЕТ: ${this.score}`);
                     this.flashText("БАЗАР ПРИНЯТ!", "#00ff00");
-                    if (this.mode === 'MULTIPLAYER') database.ref(this.roomPath + '/' + playerId).update({ score: this.score, lastWord: w });
+                    if (this.mode === 'MULTIPLAYER') database.ref(this.roomPath + '/players/' + playerId).update({ score: this.score, lastWord: w });
                 } else { this.flashText("НЕТ ТАКОГО СЛОВА", "#ff0000"); }
                 this.currentWord = ""; this.wordDisplay.setText("");
                 this.selectedTiles.forEach(t => t.clearTint()); this.selectedTiles = [];
             }
+
             flashText(m, c) {
                 const t = this.add.text(540, 450, m, { fontSize: '40px', fill: c, fontStyle: 'bold' }).setOrigin(0.5);
                 this.tweens.add({ targets: t, alpha: 0, y: 400, duration: 2000 });
             }
         }
+
         new Phaser.Game({ type: Phaser.AUTO, parent: 'game-container', width: 1080, height: 1920, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: [MenuScene, MainScene] });
     </script>
 </body>
+</html>
 </html>
