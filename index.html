@@ -1,97 +1,44 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Слова Пацана: ПРОВЕРКА</title>
+    <title>ТЕСТ ЗАПУСКА</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: monospace; }
-        #game-container { width: 100%; height: 100%; }
+        body { margin: 0; background: #222; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
-    <div id="game-container"></div>
+    <div id="game"></div>
     <script>
-        // Тот же конфиг Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyDD2ftVwjo9qFEdGegZi6HY06USWmb9j60",
-            authDomain: "slovopacana-10148.firebaseapp.com",
-            databaseURL: "https://slovopacana-10148-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "slovopacana-10148",
-            storageBucket: "slovopacana-10148.firebasestorage.app",
-            messagingSenderId: "675130644209",
-            appId: "1:675130644209:web:eb0c004521316d9c9cfb50"
+        class TestScene extends Phaser.Scene {
+            constructor() { super('TestScene'); }
+            create() {
+                this.add.text(540, 960, 'ДВИЖОК РАБОТАЕТ!\nНАЖМИ ЭКРАН', { 
+                    fontSize: '60px', 
+                    fill: '#00ff00', 
+                    align: 'center' 
+                }).setOrigin(0.5);
+
+                this.input.on('pointerdown', () => {
+                    alert('Нажатие работает! Значит, проблема была в загрузке внешних файлов.');
+                });
+            }
+        }
+
+        const config = {
+            type: Phaser.AUTO,
+            parent: 'game',
+            width: 1080,
+            height: 1920,
+            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+            scene: TestScene
         };
 
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const playerId = Math.random().toString(36).substring(7);
-
-        let BASE_WORDS = new Set();
-        let SLANG_WORDS = new Set();
-        let MEME_WORDS = new Set();
-
-        class MenuScene extends Phaser.Scene {
-            constructor() { super('MenuScene'); }
-            preload() { 
-                this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
-                // Загружаем файлы, но с обработкой ошибок
-                this.load.text('baseTxt', 'russian.txt');
-                this.load.text('slangTxt', 'slang.txt');
-                this.load.text('memesTxt', 'memes.txt');
-            }
-            create() {
-                const parse = (key) => {
-                    try {
-                        const txt = this.cache.text.get(key);
-                        if (!txt) return [];
-                        return txt.split(/[\s,]+/).map(w => w.toUpperCase().trim()).filter(w => w.length > 0);
-                    } catch(e) { console.error("Ошибка загрузки файла:", key); return []; }
-                };
-                
-                BASE_WORDS = new Set(parse('baseTxt'));
-                SLANG_WORDS = new Set(parse('slangTxt'));
-                MEME_WORDS = new Set(parse('memesTxt'));
-
-                this.add.image(540, 960, 'bg').setAlpha(0.3).setDisplaySize(1080, 1920);
-                this.add.text(540, 300, 'СЛОВА ПАЦАНА', { fontSize: '90px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-                
-                const btn = (y, txt, mode) => {
-                    const r = this.add.rectangle(540, y, 800, 150, 0x3b82f6, 0.8).setInteractive();
-                    this.add.text(540, y, txt, { fontSize: '45px', fill: '#fff' }).setOrigin(0.5);
-                    r.on('pointerdown', () => this.scene.start('MainScene', { mode }));
-                };
-                btn(850, 'ИГРАТЬ (СОЛО)', 'RANKED');
-                
-                const total = BASE_WORDS.size + SLANG_WORDS.size + MEME_WORDS.size;
-                this.add.text(540, 1200, `СЛОВ ЗАГРУЖЕНО: ${total}`, {fontSize: '30px', fill: '#ff0000'}).setOrigin(0.5);
-                if (total === 0) {
-                    this.add.text(540, 1250, 'ОШИБКА: ТЕКСТОВЫЕ ФАЙЛЫ НЕ НАЙДЕНЫ!', {fontSize: '25px', fill: '#ff0000'}).setOrigin(0.5);
-                }
-            }
-        }
-
-        // Упрощенная MainScene для проверки запуска
-        class MainScene extends Phaser.Scene {
-            constructor() { super('MainScene'); }
-            create() {
-                this.add.text(540, 960, 'ИГРА РАБО
-
-
-ТАЕТ!', {fontSize: '50px'}).setOrigin(0.5);
-                const back = this.add.text(540, 1100, 'ВЕРНУТЬСЯ', {fontSize: '40px', fill: '#facc15'}).setOrigin(0.5).setInteractive();
-                back.on('pointerdown', () => this.scene.start('MenuScene'));
-            }
-        }
-
-        new Phaser.Game({ type: Phaser.AUTO, parent: 'game-container', width: 1080, height: 1920, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: [MenuScene, MainScene] });
+        new Phaser.Game(config);
     </script>
 </body>
 </html>
-
 
 
 
