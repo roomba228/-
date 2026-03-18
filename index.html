@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Слова Пацана: АЛФАВИТНЫЙ БАТТЛ</title>
+    <title>Слова Пацана: ТЕРРИТОРИЯ (FIX)</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; font-family: monospace; color: #fff; }
         #game-container { width: 100%; height: 100%; }
@@ -15,6 +15,7 @@
 <body>
     <div id="game-container"></div>
     <script>
+        // Конфиг Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyDD2ftVwjo9qFEdGegZi6HY06USWmb9j60",
             authDomain: "slovopacana-10148.firebaseapp.com",
@@ -40,19 +41,32 @@
         class MenuScene extends Phaser.Scene {
             constructor() { super('MenuScene'); }
             preload() { 
+                console.log("Загрузка ресурсов...");
                 this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
+                
+                // Чтобы лоадер не вис, если файлов нет
+                this.load.on('loaderror', (file) => {
+                    console.warn("Ошибка загрузки файла: " + file.key);
+                });
+
+                // Текстовые файлы (могут отсутствовать локально)
                 this.load.text('baseTxt', 'russian.txt');
                 this.load.text('slangTxt', 'slang.txt');
                 this.load.text('memesTxt', 'memes.txt');
+                
+                // Звуки
                 this.load.audio('click', 'https://labs.phaser.io/assets/audio/SoundEffects/key.wav');
                 this.load.audio('capture', 'https://labs.phaser.io/assets/audio/SoundEffects/magic.wav');
             }
             create() {
-                const normalize = (word) => word.toUpperCase().trim().replace(/Ё/g, 'Е');
+                console.log("Меню готово");
+                const normalize = (word) => word ? word.toUpperCase().trim().replace(/Ё/g, 'Е') : "";
                 const parse = (key) => {
+                    if (!this.cache.text.has(key)) return [];
                     const txt = this.cache.text.get(key);
                     return txt ? txt.split(/[\s,]+/).map(normalize).filter(w => w.length > 0) : [];
                 };
+
                 BASE_WORDS = new Set(parse('baseTxt'));
                 SLANG_WORDS = new Set(parse('slangTxt'));
                 MEME_WORDS = new Set(parse('memesTxt'));
@@ -62,11 +76,15 @@
                 
                 const r = this.add.rectangle(540, 960, 800, 180, 0x3b82f6, 0.8).setInteractive();
                 this.add.text(540, 960, 'ЗАХВАТ ПОЛЯ', { fontSize: '60px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+                
                 r.on('pointerdown', () => this.scene.start('MainScene'));
             }
         }
 
-        class MainScene extends Phaser.Scene {
+        class MainScene ext
+
+
+ends Phaser.Scene {
             constructor() { super('MainScene'); }
             init() { 
                 this.roomPath = 'rooms/battle_territory'; 
@@ -78,12 +96,10 @@
             }
             preload() {
                 this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
-                this.load.image('tile', 'https://rosebud.ai
-
-
-/assets/stone-tile.webp?Nl9W');
+                this.load.image('tile', 'https://rosebud.ai/assets/stone-tile.webp?Nl9W');
             }
             create() {
+                console.log("Игра началась");
                 this.add.image(540, 960, 'bg').setAlpha(0.15).setDisplaySize(1080, 1920);
                 
                 this.score = 0; this.oppScore = 0; this.currentWord = ""; this.selectedTiles = [];
@@ -103,6 +119,7 @@
                 roomRef.child('grid').on('value', (snap) => {
                     const val = snap.val();
                     if (!val && !this.gridCreated) {
+                        console.log("Генерация новой сетки 32x2");
                         roomRef.child('grid').set(this.generateAlphabetGrid());
                     } else if (val && !this.gridCreated) {
                         this.createGridFromLetters(val);
@@ -126,7 +143,6 @@
                         } else {
                             this.oppScore = data[id].score || 0;
                             this.oppScoreText.setText(`СОПЕРНИК: ${this.oppScore}`);
-                            this.showOpponentProgress(data[id].selections || []);
                         }
                     }
                     if (this.score >= WIN_SCORE) this.endGame(playerId);
@@ -134,11 +150,8 @@
             }
 
             generateAlphabetGrid() {
-                // 32 буквы (без Ё для ровного счета 64)
-                const alphabet = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+                const alphabet = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"; // 32 буквы
                 let letters = (alphabet + alphabet).split('');
-                
-                // Перемешивание (Фишер-Йетс)
                 for (let i = letters.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [letters[i], letters[j]] = [letters[j], letters[i]];
@@ -151,7 +164,10 @@
                 for (let i = 0; i < 64; i++) {
                     let r = Math.floor(i / 8), c = i % 8;
                     let x = 120 + c * 115, y = 500 + r * 115;
-                    let t = this.add.image(x, y, 'tile').setDisplaySize(105, 105).setInteractive();
+                    let t = this.add.image(x, y, 'tile').set
+
+
+DisplaySize(105, 105).setInteractive();
                     t.setData('index', i);
                     this.tileImages[i] = t;
                     this.add.text(x, y, str[i], { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
@@ -161,11 +177,8 @@
 
             handleTileClick(tile, letter) {
                 if (this.isGameOver) return;
-                const idx = this.selec
-
-
-tedTiles.indexOf(tile);
-                this.sound.play('click', { volume: 0.4 });
+                const idx = this.selectedTiles.indexOf(tile);
+                try { this.sound.play('click', { volume: 0.4 }); } catch(e) {}
 
                 if (idx === -1) {
                     this.currentWord += letter;
@@ -181,7 +194,6 @@ tedTiles.indexOf(tile);
                     this.currentWord = this.currentWord.slice(0, -1);
                 }
                 this.wordDisplay.setText(this.currentWord);
-                database.ref(`${this.roomPath}/players/${playerId}/selections`).set(this.selectedTiles.map(t => t.getData('index')));
             }
 
             checkWord() {
@@ -189,29 +201,33 @@ tedTiles.indexOf(tile);
                 const w = this.currentWord.toUpperCase().replace(/Ё/g, 'Е');
                 if (this.usedWords.has(w)) { this.flashText("БЫЛО!", "#ff9900"); return; }
 
+                // Если словарей нет, принимаем любое слово от 2 букв
+                const isRealWord = (BASE_WORDS.size === 0) || BASE_WORDS.has(w) || SLANG_WORDS.has(w) || MEME_WORDS.has(w);
+                
+                if (!isRealWord) { 
+                    this.flashText("НЕТ В БАЗЕ", "#ff0000"); 
+                    this.resetSelection(); 
+                    return; 
+                }
+
+                try { this.sound.play('capture', { volume: 0.5 }); } catch(e) {}
+                
                 let stealBonus = 1;
                 const currentIndices = this.selectedTiles.map(t => t.getData('index'));
                 currentIndices.forEach(idx => {
                     if (this.tilesOwner[idx] && this.tilesOwner[idx] !== playerId) stealBonus = 2;
                 });
 
-                let typeMult = 1;
-                if (MEME_WORDS.has(w)) typeMult = 3;
-                else if (SLANG_WORDS.has(w)) typeMult = 2;
-                else if (!BASE_WORDS.has(w)) { this.flashText("НЕТ В БАЗЕ", "#ff0000"); this.resetSelection(); return; }
-
-                this.sound.play('capture', { volume: 0.5 });
                 this.usedWords.add(w);
-                const totalMult = typeMult * stealBonus;
-                const points = w.length * 100 * totalMult;
+                const points = w.length * 100 * stealBonus;
                 
                 const newOwnership = {...this.tilesOwner};
                 currentIndices.forEach(idx => { newOwnership[idx] = playerId; });
                 
                 database.ref(`${this.roomPath}/ownership`).set(newOwnership);
-                database.ref(`${this.roomPath}/players/${playerId}`).update({ score: this.score + points, selections: [] });
+                database.ref(`${this.roomPath}/players/${playerId}`).update({ score: this.score + points });
                 
-                this.flashText(totalMult > 1 ? `ПЕРЕХВАТ x${totalMult}! +${points}` : `+${points}`, "#00ff00");
+                this.flashText(stealBonus > 1 ? `ПЕРЕХВАТ! +${points}` : `+${points}`, "#00ff00");
                 this.resetSelection();
             }
 
@@ -228,25 +244,18 @@ tedTiles.indexOf(tile);
                 }
             }
 
-            showOpponentProgress(indices) {
-                indices.forEach(idx => {
-                    if (this.tileImages[idx]) this.tileImages[idx].setTint(0x555555);
-                });
-            }
-
             endGame(winnerId) {
                 this.isGameOver = true;
                 const isWin = winnerId === playerId;
                 const msg = isWin ? "ТВОЯ ТЕРРИТОРИЯ!" : "ТЕБЯ ВЫТЕСНИЛИ...";
                 this.add.rectangle(540, 960, 1000, 500, 0x000000, 0.95);
                 this.add.text(540, 900, msg, { fontSize: '80px', fill: isWin ? '#00ff00' : '#ff0000' }).setOrigin(0.5);
-                const b = this.add.text(540, 1100, 'В МЕНЮ', { fontSize: '60px', fill: '#facc15' }).setOrigin(0.5).setInteractive();
+
+
+const b = this.add.text(540, 1100, 'В МЕНЮ', { fontSize: '60px', fill: '#facc15' }).setOrigin(0.5).setInteractive();
                 b.on('pointerdown', () => {
-                    database.ref(this.roomPath).remove
-
-
-().then(() => {
-                        this.scene.start('MenuScene');
+                    database.ref(this.roomPath).remove().then(() => {
+                        window.location.reload(); // Полная перезагрузка для надежности
                     });
                 });
             }
@@ -255,7 +264,6 @@ tedTiles.indexOf(tile);
                 this.currentWord = ""; this.wordDisplay.setText("");
                 this.selectedTiles = [];
                 this.updateTileVisuals();
-                database.ref(`${this.roomPath}/players/${playerId}/selections`).set([]);
             }
 
             flashText(m, c) {
@@ -264,7 +272,16 @@ tedTiles.indexOf(tile);
             }
         }
 
-        new Phaser.Game({ type: Phaser.AUTO, parent: 'game-container', width: 1080, height: 1920, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, audio: { disableWebAudio: false }, scene: [MenuScene, MainScene] });
+        const config = {
+            type: Phaser.AUTO,
+            parent: 'game-container',
+            width: 1080,
+            height: 1920,
+            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+            scene: [MenuScene, MainScene]
+        };
+
+        new Phaser.Game(config);
     </script>
 </body>
 </html>
