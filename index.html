@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Слова Пацана: Битва</title>
+
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#121212">
+    
+    <link rel="icon" type="image/png" href="https://rosebud.ai/assets/stone-tile.webp?Nl9W">
+    <link rel="apple-touch-icon" href="https://rosebud.ai/assets/stone-tile.webp?Nl9W">
+
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #000; 
+            overflow: hidden; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh;
+            touch-action: none; /* Отключаем системные жесты браузера */
+        }
+        canvas { 
+            box-shadow: 0 0 50px rgba(0,0,0,0.8); 
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+
+    <script>
+        // --- БАЗА СЛОВ ---
+        const INSULTS = new Set(["ДУРАК", "ХАМ", "ГРУБИЯН", "СЛАБАК", "КРЫСА", "ЧУШПАН", "КЛОУН", "ШНЫРЬ", "БАЛАБОЛ", "ТРЕПАЧ"]);
+        const COMMON_WORDS = new Set(["АД", "АКТ", "АРКА", "АТОМ", "БАЛ", "БАР", "БАС", "БЕГ", "БИТ", "БОГ", "БОЙ", "БОК", "БОР", "БРАТ", "ВАЛ", "ВАР", "ВЕК", "ВЕС", "ВИД", "ВОР", "ВРАГ", "ГАЗ", "ГОД", "ГОЛ", "ГРАД", "ГРИБ", "ГРУЗ", "ДАР", "ДЕЛО", "ДЕНЬ", "ДОМ", "ДРУГ", "ДУБ", "ДУХ", "ЕДА", "ЕЛЬ", "ЖАР", "ЗАЛ", "ЗОВ", "ЗУБ", "ИГРА", "ИМЯ", "КИНО", "КИТ", "КОД", "КОТ", "КРУГ", "КУБ", "ЛАД", "ЛЕВ", "ЛЕС", "ЛИС", "ЛИЦО", "ЛОБ", "ЛУГ", "ЛУК", "ЛУЧ", "МАГ", "МАК", "МАТ", "МИР", "МОСТ", "МЯСО", "НОЖ", "НОС", "НОЧЬ", "НЕБО", "ОКНО", "ОТЕЦ", "ПАР", "ПИР", "ПОЛ", "ПОТ", "ПУТЬ", "РЕКА", "РОГ", "РОД", "РОК", "РОТ", "РУКА", "РУЛЬ", "РУСЬ", "РЫБА", "САД", "СВЕТ", "СИЛА", "СЛОВО", "СОК", "СОМ", "СОН", "СТОЛ", "СУД", "СУП", "СЫН", "СЫР", "ТАК", "ТЕЛО", "ТИП", "ТОК", "ТОМ", "ТОН", "ТРУД", "УДАР", "УМ", "УТРО", "ФАКТ", "ФЛОТ", "ХОД", "ХОР", "ЦАРЬ", "ЦЕЛЬ", "ЧАС", "ЧАЙ", "ШАГ", "ШАР", "ШУМ", "ЩИТ", "ЮГ", "ЯД", "ЯЗЫК", "ЯМА", "ЯХТА"]);
+        const ALL_WORDS = new Set([...INSULTS, ...COMMON_WORDS]);
+
+        const CONFIG = {
+            gridSize: 8,
+            tileSize: 105,
+            margin: 10,
+            assets: {
+                bg: 'https://rosebud.ai/assets/concrete-wall.webp?wHr0',
+                tile: 'https://rosebud.ai/assets/stone-tile.webp?Nl9W',
+                bgm: 'https://rosebud.ai/assets/Nebula_Dreams.mp3?qN4h'
+            }
+        };
+
+        class MainScene extends Phaser.Scene {
+            constructor() { super('MainScene'); }
+
+            preload() {
+                this.load.image('bg', CONFIG.assets.bg);
+                this.load.image('tile', CONFIG.assets.tile);
+            }
+
+            create() {
+                // Фон на весь экран
+                const bg = this.add.image(540, 960, 'bg').setAlpha(0.3);
+                bg.setDisplaySize(1080, 1920);
+
+                this.currentWord = "";
+                this.score = 0;
+                this.selectedTiles = [];
+
+                // UI
+                this.scoreText = this.add.text(540, 100, 'АВТОРИТЕТ: 0', { 
+                    fontFamily: '"Press Start 2P"', fontSize: '40px', fill: '#facc15' 
+                }).setOrigin(0.5);
+
+                this.wordDisplay = this.add.text(540, 300, 'ВЫБЕРИ СЛОВО', { 
+                    fontFamily: '"Press Start 2P"', fontSize: '45px', fill: '#ffffff' 
+                }).setOrigin(0.5);
+
+                this.createGrid();
+
+                // Кнопка подтверждения (увеличена для удобства пальцев)
+                const submitBtn = this.add.container(540, 1600);
+                const btnBg = this.add.rectangle(0, 0, 800, 120, 0x00ff00, 0.2).setInteractive();
+                const btnText = this.add.text(0, 0, 'ОТВЕТИТЬ ЗА БАЗАР', {
+                    fontFamily: '"Press Start 2P"', fontSize: '36px', fill: '#00ff00'
+                }).setOrigin(0.5);
+                submitBtn.add([btnBg, btnText]);
+
+                btnBg.on('pointerdown', () => {
+                    btnBg.setAlpha(0.5);
+                    this.checkWord();
+                });
+                btnBg.on('pointerup', () => btnBg.setAlpha(0.2));
+
+                // Звуковая кнопка
+                const sBtn = this.add.text(540, 1800, '[ ВКЛЮЧИТЬ МУЗОН ]', {
+                    fontFamily: '"Press Start 2P"', fontSize: '28px', fill: '#888'
+                }).setOrigin(0.5).setInteractive();
+
+                sBtn.on('pointerdown', async () => {
+                    await Tone.start();
+                    const player = new Tone.Player(CONFIG.assets.bgm).toDestination();
+                    player.loop = true;
+                    player.autostart = true;
+                    sBtn.destroy();
+                });
+            }
+
+            createGrid() {
+                const totalSize = CONFIG.gridSize * (CONFIG.tileSize + CONFIG.margin);
+                const startX = (1080 - totalSize) / 2 + CONFIG.tileSize/2;
+                const startY = 500;
+                const alphabet = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЬЫЯ";
+
+                for (let r = 0; r < CONFIG.gridSize; r++) {
+                    for (let c = 0; c < CONFIG.gridSize; c++) {
+                        const letter = alphabet[Math.floor(Math.random() * alphabet.length)];
+                        const x = startX + c * (CONFIG.tileSize + CONFIG.margin);
+                        const y = startY + r * (CONFIG.tileSize + CONFIG.margin);
+                        
+                        const tile = this.add.image(x, y, 'tile').setDisplaySize(CONFIG.tileSize, CONFIG.tileSize).setInteractive();
+                        const txt = this.add.text(x, y, letter, { 
+                            fontFamily: '"Press Start 2P"', fontSize: '38px', fill: '#fff' 
+                        }).setOrigin(0.5);
+
+                        tile.on('pointerdown', () => {
+                            if (this.selectedTiles.includes(tile)) return;
+                            this.currentWord += letter;
+                            this.wordDisplay.setText(this.currentWord);
+                            tile.setTint(0x3b82f6);
+                            this.selectedTiles.push(tile);
+                            this.cameras.main.shake(50, 0.003);
+                        });
+                    }
+                }
+            }
+
+            checkWord() {
+                const word = this.currentWord.toUpperCase();
+                if (ALL_WORDS.has(word)) {
+                    let gain = word.length * 50;
+                    if (INSULTS.has(word)) {
+                        gain *= 2;
+                        this.flashText("БАЗАР ПРИНЯТ! +X2", "#ff0000");
+                    } else {
+                        this.flashText("ЕСТЬ ТАКОЕ СЛОВО", "#00ff00");
+                    }
+                    this.score += gain;
+                    this.scoreText.setText(`АВТОРИТЕТ: ${this.score}`);
+                } else {
+                    this.flashText("НЕТ ТАКОГО СЛОВА", "#ffffff");
+                }
+                this.currentWord = "";
+                this.wordDisplay.setText("");
+                this.selectedTiles.forEach(t => t.clearTint());
+                this.selectedTiles = [];
+            }
+
+            flashText(msg, color) {
+                const t = this.add.text(540, 400, msg, { 
+                    fontFamily: '"Press Start 2P"', fontSize: '35px', fill: color 
+                }).setOrigin(0.5);
+                this.tweens.add({ targets: t, y: 350, alpha: 0, duration: 2000, onComplete: () => t.destroy() });
+            }
+        }
+
+        const phaserConfig = {
+            type: Phaser.AUTO,
+            parent: 'game-container',
+            width: 1080,
+            height: 1920,
+            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+            scene: [MainScene]
+        };
+
+        new Phaser.Game(phaserConfig);
+    </script>
+</body>
+</html>
