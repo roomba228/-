@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Слова Пацана: ТЕРРИТОРИЯ (FIX)</title>
+    <title>ТЕРРИТОРИЯ: ЧИСТЫЙ КОД</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; font-family: monospace; color: #fff; }
-        #game-container { width: 100%; height: 100%; }
+        body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; font-family: 'Courier New', Courier, monospace; color: #fff; }
+        #game-container { width: 100%; height: 100%; border: 2px solid #333; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -15,7 +15,6 @@
 <body>
     <div id="game-container"></div>
     <script>
-        // Конфиг Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyDD2ftVwjo9qFEdGegZi6HY06USWmb9j60",
             authDomain: "slovopacana-10148.firebaseapp.com",
@@ -30,109 +29,80 @@
         const database = firebase.database();
         const playerId = Math.random().toString(36).substring(7);
 
-        let BASE_WORDS = new Set();
-        let SLANG_WORDS = new Set();
-        let MEME_WORDS = new Set();
-
-        const COLOR_SELF = 0x3b82f6; 
-        const COLOR_OPP = 0xff4444;  
-        const WIN_SCORE = 2000;
+        // Цвета (строгий стиль)
+        const THEME = {
+            bg: 0x0f172a,
+            tile: 0x1e293b,
+            self: 0x3b82f6,
+            opp: 0xef4444,
+            text: '#ffffff',
+            accent: '#facc15'
+        };
 
         class MenuScene extends Phaser.Scene {
             constructor() { super('MenuScene'); }
-            preload() { 
-                console.log("Загрузка ресурсов...");
-                this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
-                
-                // Чтобы лоадер не вис, если файлов нет
-                this.load.on('loaderror', (file) => {
-                    console.warn("Ошибка загрузки файла: " + file.key);
-                });
-
-                // Текстовые файлы (могут отсутствовать локально)
-                this.load.text('baseTxt', 'russian.txt');
-                this.load.text('slangTxt', 'slang.txt');
-                this.load.text('memesTxt', 'memes.txt');
-                
-                // Звуки
-                this.load.audio('click', 'https://labs.phaser.io/assets/audio/SoundEffects/key.wav');
-                this.load.audio('capture', 'https://labs.phaser.io/assets/audio/SoundEffects/magic.wav');
-            }
             create() {
-                console.log("Меню готово");
-                const normalize = (word) => word ? word.toUpperCase().trim().replace(/Ё/g, 'Е') : "";
-                const parse = (key) => {
-                    if (!this.cache.text.has(key)) return [];
-                    const txt = this.cache.text.get(key);
-                    return txt ? txt.split(/[\s,]+/).map(normalize).filter(w => w.length > 0) : [];
-                };
-
-                BASE_WORDS = new Set(parse('baseTxt'));
-                SLANG_WORDS = new Set(parse('slangTxt'));
-                MEME_WORDS = new Set(parse('memesTxt'));
-
-                this.add.image(540, 960, 'bg').setAlpha(0.3).setDisplaySize(1080, 1920);
-                this.add.text(540, 400, 'СЛОВА\nПАЦАНА', { fontSize: '130px', fill: '#fff', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
+                this.cameras.main.setBackgroundColor('#0f172a');
+                this.add.text(540, 400, 'СЛОВА\nПАЦАНА', { fontSize: '120px', fill: '#fff', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
                 
-                const r = this.add.rectangle(540, 960, 800, 180, 0x3b82f6, 0.8).setInteractive();
-                this.add.text(540, 960, 'ЗАХВАТ ПОЛЯ', { fontSize: '60px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+                const btn = this.add.rectangle(540, 960, 700, 150, 0x3b82f6).setInteractive();
+                this.add.text(540, 960, 'ЗАХВАТ ПОЛЯ', { fontSize: '50px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
                 
-                r.on('pointerdown', () => this.scene.start('MainScene'));
+                btn.on('pointerdown', () => this.scene.start('MainScene'));
             }
         }
 
-        class MainScene ext
-
-
-ends Phaser.Scene {
+        class MainScene extends Phaser.Scene {
             constructor() { super('MainScene'); }
             init() { 
                 this.roomPath = 'rooms/battle_territory'; 
                 this.gridCreated = false;
                 this.isGameOver = false;
-                this.tileImages = [];
+                this.tileObjects = [];
                 this.tilesOwner = {}; 
                 this.usedWords = new Set();
+                this.selectedIndices = [];
+                this.currentWord = "";
             }
-            preload() {
-                this.load.image('bg', 'https://rosebud.ai/assets/concrete-wall.webp?wHr0');
-                this.load.image('tile', 'https://rosebud.ai/assets/stone-tile.webp?Nl9W');
-            }
-            create() {
-                console.log("Игра началась");
-                this.add.image(540, 960, 'bg').setAlpha(0.15).setDisplaySize(1080, 1920);
-                
-                this.score = 0; this.oppScore = 0; this.currentWord = ""; this.selectedTiles = [];
-                this.scoreText = this.add.text(50, 80, 'АВТОРИТЕТ: 0', { fontSize: '45px', fill: '#facc15', fontStyle: 'bold' });
-                this.oppScoreText = this.add.text(50, 150, 'СОПЕРНИК: 0', { fontSize: '40px', fill: '#ff4444' });
-                this.wordDisplay = this.add.text(540, 350, '', { fontSize: '85px', fill: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 10 }).setOrigin(0.5);
 
-                const sub = this.add.rectangle(540, 1650, 800, 160, 0x00ff00, 0.5).setInteractive();
-                this.add.text(540, 1650, 'ЗАХВАТИТЬ', { fontSize: '60px', fontStyle: 'bold' }).setOrigin(0.5);
-                sub.on('pointerdown', () => this.checkWord());
+            create() {
+                this.cameras.main.setBackgroundColor('#0f172a');
+                
+                // Интерфейс
+                this.scoreText = this.add.text(50, 80, 'АВТОРИТЕТ: 0', { fontSize: '40px', fill: THEME.accent, fontStyle: 'bold' });
+                this.oppScoreText = this.add.text(50, 140, 'СОПЕРНИК: 0', { fontSize: '35px', fill: '#ef4444' });
+                this.wordDisplay = this.add.text(540, 300, '', { fontSize: '90px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+
+                // Кнопка захвата
+                const subBtn = this.add.rectangle(540, 1700, 800, 140, 0x22c55e).setInteractive();
+                this.add.text(540, 1700, 'ВЗЯТЬ СВОЁ', { fontSize: '55px', fontStyle: 'bold' }).setOrigin(0.5);
+                subBtn.on('pointerdown', () => this.checkWord());
 
                 this.syncMultiplayer();
             }
 
             syncMultiplayer() {
                 const roomRef = database.ref(this.roomPath);
-                roomRef.child('grid').on('value', (snap) => {
+                
+                roomRef.child('grid'
+
+
+).on('value', (snap) => {
                     const val = snap.val();
                     if (!val && !this.gridCreated) {
-                        console.log("Генерация новой сетки 32x2");
                         roomRef.child('grid').set(this.generateAlphabetGrid());
                     } else if (val && !this.gridCreated) {
-                        this.createGridFromLetters(val);
+                        this.createGrid(val);
                         this.gridCreated = true;
                     }
                 });
 
                 roomRef.child('ownership').on('value', (snap) => {
                     this.tilesOwner = snap.val() || {};
-                    this.updateTileVisuals();
+                    this.updateVisuals();
                 });
 
-                database.ref(`${this.roomPath}/players/${playerId}`).update({ score: 0, selections: [] });
+                database.ref(`${this.roomPath}/players/${playerId}`).update({ score: 0 });
                 roomRef.child('players').on('value', (snap) => {
                     const data = snap.val();
                     if (!data) return;
@@ -145,13 +115,13 @@ ends Phaser.Scene {
                             this.oppScoreText.setText(`СОПЕРНИК: ${this.oppScore}`);
                         }
                     }
-                    if (this.score >= WIN_SCORE) this.endGame(playerId);
+                    if (this.score >= 3000) this.endGame(playerId);
                 });
             }
 
             generateAlphabetGrid() {
-                const alphabet = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"; // 32 буквы
-                let letters = (alphabet + alphabet).split('');
+                const abc = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+                let letters = (abc + abc).split('');
                 for (let i = letters.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [letters[i], letters[j]] = [letters[j], letters[i]];
@@ -159,128 +129,119 @@ ends Phaser.Scene {
                 return letters.join('');
             }
 
-            createGridFromLetters(str) {
-                this.tileImages = [];
+            createGrid(str) {
+                const startX = 135, startY = 500, step = 115;
                 for (let i = 0; i < 64; i++) {
                     let r = Math.floor(i / 8), c = i % 8;
-                    let x = 120 + c * 115, y = 500 + r * 115;
-                    let t = this.add.image(x, y, 'tile').set
+                    let x = startX + c * step, y = startY + r * step;
+                    
+                    // Рисуем плитку программно
+                    let rect = this.add.rectangle(x, y, 105, 105, THEME.tile).setInteractive();
+                    let txt = this.add.text(x, y, str[i], { fontSize: '45px', fontStyle: 'bold' }).setOrigin(0.5);
+                    
+                    rect.setData('index', i);
+                    rect.setData('char', str[i]);
+                    this.tileObjects[i] = { rect, txt };
 
-
-DisplaySize(105, 105).setInteractive();
-                    t.setData('index', i);
-                    this.tileImages[i] = t;
-                    this.add.text(x, y, str[i], { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-                    t.on('pointerdown', () => this.handleTileClick(t, str[i]));
+                    rect.on('pointerdown', () => this.handleTap(i));
                 }
             }
 
-            handleTileClick(tile, letter) {
+            handleTap(idx) {
                 if (this.isGameOver) return;
-                const idx = this.selectedTiles.indexOf(tile);
-                try { this.sound.play('click', { volume: 0.4 }); } catch(e) {}
+                const pos = this.selectedIndices.indexOf(idx);
+                const obj = this.tileObjects[idx];
 
-                if (idx === -1) {
-                    this.currentWord += letter;
-                    tile.setTint(0x00ffff); 
-                    this.selectedTiles.push(tile);
-                    this.tweens.add({ targets: tile, scale: 1.1, duration: 50, yoyo: true });
-                } else if (idx === this.selectedTiles.length - 1) {
-                    const owner = this.tilesOwner[tile.getData('index')];
-                    if (owner === playerId) tile.setTint(COLOR_SELF);
-                    else if (owner) tile.setTint(COLOR_OPP);
-                    else tile.clearTint();
-                    this.selectedTiles.pop();
+                if (pos === -1) {
+                    this.selectedIndices.push(idx);
+                    this.currentWord += obj.rect.getData('char');
+                    obj.rect.setStrokeStyle(4, 0x00ffff);
+                } else if (pos === this.selectedIndices.length - 1) {
+                    this.selectedIndices.pop();
                     this.currentWord = this.currentWord.slice(0, -1);
+                    obj.rect.setStrokeStyle(0);
                 }
                 this.wordDisplay.setText(this.currentWord);
+                this.updateVisuals();
             }
 
             checkWord() {
-                if (this.isGameOver || this.currentWord.length < 2) return;
-                const w = this.currentWord.toUpperCase().replace(/Ё/g, 'Е');
-                if (this.usedWords.has(w)) { this.flashText("БЫЛО!", "#ff9900"); return; }
-
-                // Если словарей нет, принимаем любое слово от 2 букв
-                const isRealWord = (BASE_WORDS.size === 0) || BASE_WORDS.has(w) || SLANG_WORDS.has(w) || MEME_WORDS.has(w);
+                if (this.currentWord.length < 2) return;
                 
-                if (!isRealWord) { 
-                    this.flashText("НЕТ В БАЗЕ", "#ff0000"); 
-                    this.resetSelection(); 
-                    return; 
-                }
+                const w = this.currentWord;
+                if (this.usedWords.has(w)) { this.flashMsg("БЫЛО"); return; }
 
-                try { this.sound.play('capture', { volume: 0.5 }); } catch(e) {}
-                
-                let stealBonus = 1;
-                const currentIndices = this.selectedTiles.map(t => t.getData('index'));
-                currentIndices.forEach(idx => {
-                    if (this.tilesOwner[idx] && this.tilesOwner[idx] !== playerId) stealBonus = 2;
+                // Пока нет словаря, считаем любое слово > 2 букв верным
+                this.usedWords.add(w);
+                let bonus = 1;
+                this.selectedIndices.forEach(idx => {
+                    if (this.tilesOwner[idx] && this.tilesOwner[idx] !== playerId) bonus = 2;
                 });
 
-                this.usedWords.add(w);
-                const points = w.length * 100 * stealBonus;
-                
+                const points = w.length * 100 * bonu
+
+
+s;
                 const newOwnership = {...this.tilesOwner};
-                currentIndices.forEach(idx => { newOwnership[idx] = playerId; });
-                
+                this.selectedIndices.forEach(idx => { newOwnership[idx] = playerId; });
+
                 database.ref(`${this.roomPath}/ownership`).set(newOwnership);
                 database.ref(`${this.roomPath}/players/${playerId}`).update({ score: this.score + points });
                 
-                this.flashText(stealBonus > 1 ? `ПЕРЕХВАТ! +${points}` : `+${points}`, "#00ff00");
-                this.resetSelection();
+                this.flashMsg(bonus > 1 ? `ПЕРЕХВАТ! +${points}` : `+${points}`);
+                this.resetTurn();
             }
 
-            updateTileVisuals() {
-                if (!this.tileImages.length) return;
+            updateVisuals() {
                 for (let i = 0; i < 64; i++) {
                     const owner = this.tilesOwner[i];
-                    const tile = this.tileImages[i];
-                    if (!this.selectedTiles.includes(tile)) {
-                        if (owner === playerId) tile.setTint(COLOR_SELF);
-                        else if (owner) tile.setTint(COLOR_OPP);
-                        else tile.clearTint();
+                    const obj = this.tileObjects[i];
+                    if (!obj) continue;
+
+                    if (this.selectedIndices.includes(i)) {
+                        obj.rect.setFillStyle(0x444444);
+                    } else if (owner === playerId) {
+                        obj.rect.setFillStyle(THEME.self);
+                    } else if (owner) {
+                        obj.rect.setFillStyle(THEME.opp);
+                    } else {
+                        obj.rect.setFillStyle(THEME.tile);
                     }
                 }
             }
 
+            resetTurn() {
+                this.selectedIndices.forEach(idx => this.tileObjects[idx].rect.setStrokeStyle(0));
+                this.selectedIndices = [];
+                this.currentWord = "";
+                this.wordDisplay.setText("");
+                this.updateVisuals();
+            }
+
+            flashMsg(m) {
+                const t = this.add.text(540, 400, m, { fontSize: '60px', fontStyle: 'bold', backgroundColor: '#000' }).setOrigin(0.5);
+                this.tweens.add({ targets: t, alpha: 0, y: 200, duration: 1500, onComplete: () => t.destroy() });
+            }
+
             endGame(winnerId) {
                 this.isGameOver = true;
-                const isWin = winnerId === playerId;
-                const msg = isWin ? "ТВОЯ ТЕРРИТОРИЯ!" : "ТЕБЯ ВЫТЕСНИЛИ...";
-                this.add.rectangle(540, 960, 1000, 500, 0x000000, 0.95);
-                this.add.text(540, 900, msg, { fontSize: '80px', fill: isWin ? '#00ff00' : '#ff0000' }).setOrigin(0.5);
-
-
-const b = this.add.text(540, 1100, 'В МЕНЮ', { fontSize: '60px', fill: '#facc15' }).setOrigin(0.5).setInteractive();
-                b.on('pointerdown', () => {
-                    database.ref(this.roomPath).remove().then(() => {
-                        window.location.reload(); // Полная перезагрузка для надежности
-                    });
+                const win = winnerId === playerId;
+                this.add.rectangle(540, 960, 1080, 1920, 0x000000, 0.8);
+                this.add.text(540, 800, win ? "РАЙОН ТВОЙ" : "ВЫТЕСНИЛИ", { fontSize: '100px', fill: win ? '#00ff00' : '#ff0000' }).setOrigin(0.5);
+                const re = this.add.text(540, 1100, 'ЗАНОВО', { fontSize: '60px' }).setOrigin(0.5).setInteractive();
+                re.on('pointerdown', () => {
+                    database.ref(this.roomPath).remove().then(() => window.location.reload());
                 });
-            }
-
-            resetSelection() {
-                this.currentWord = ""; this.wordDisplay.setText("");
-                this.selectedTiles = [];
-                this.updateTileVisuals();
-            }
-
-            flashText(m, c) {
-                const t = this.add.text(540, 450, m, { fontSize: '50px', fill: c, fontStyle: 'bold' }).setOrigin(0.5);
-                this.tweens.add({ targets: t, alpha: 0, y: 300, duration: 2000 });
             }
         }
 
         const config = {
             type: Phaser.AUTO,
             parent: 'game-container',
-            width: 1080,
-            height: 1920,
+            width: 1080, height: 1920,
             scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
             scene: [MenuScene, MainScene]
         };
-
         new Phaser.Game(config);
     </script>
 </body>
